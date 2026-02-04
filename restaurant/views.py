@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from .permissions import IsManager
+from .models import Category, MenuItem
+from .serializers import CategorySerializer, MenuItemSerializer
 
 
 # Manager Group Management
@@ -50,3 +52,24 @@ class DeliveryCrewViewSet(viewsets.ViewSet):
         dc_group = Group.objects.get(name="Delivery Crew")
         dc_group.user_set.remove(user)
         return Response(status=status.HTTP_200_OK)
+    
+# /api/categories
+class CategoriesView(generics.ListCreateAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.AllowAny()]
+        return [IsManager()]
+
+# /api/menu-items
+class MenuItemsView(generics.ListCreateAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+    ordering_fields = ['price', 'category']
+    search_fields = ['title', 'category__title']
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.AllowAny()]
+        return [IsManager()]
