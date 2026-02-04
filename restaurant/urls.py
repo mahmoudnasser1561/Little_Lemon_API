@@ -1,4 +1,6 @@
 from django.urls import path
+from rest_framework.authtoken.views import obtain_auth_token
+
 from . import views
 
 urlpatterns = [
@@ -19,4 +21,6 @@ urlpatterns = [
         "groups/delivery-crew/users/<int:userId>",
         views.DeliveryCrewViewSet.as_view({"delete": "destroy"}),
     ),
+    
+    path('api-token-auth/', obtain_auth_token)
 ]
