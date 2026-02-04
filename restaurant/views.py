@@ -2,6 +2,8 @@ from rest_framework import generics, status, viewsets, permissions
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from .permissions import IsManager
 from .models import Category, MenuItem
 from .serializers import CategorySerializer, MenuItemSerializer
@@ -66,8 +68,20 @@ class CategoriesView(generics.ListCreateAPIView):
 class MenuItemsView(generics.ListCreateAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     ordering_fields = ['price', 'category']
     search_fields = ['title', 'category__title']
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.AllowAny()]
+        return [IsManager()]
+    
+# # /api/menu-items/{menuItem}
+class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
 
     def get_permissions(self):
         if self.request.method == 'GET':

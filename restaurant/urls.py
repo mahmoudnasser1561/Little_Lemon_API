@@ -25,6 +25,15 @@ urlpatterns = [
     path('api-token-auth/', obtain_auth_token),
     # path("users/", include("djoser.urls")),
     
-    path('categories', views.CategoriesView.as_view()),
-    path('menu-items', views.MenuItemsView.as_view()),
+    path('categories/', views.CategoriesView.as_view()),
+    
+    path(
+        'menu-items/', 
+         views.MenuItemsView.as_view()
+    ),
+    
+    path(
+        'menu-items/<int:pk>', 
+        views.SingleMenuItemView.as_view()
+    ),
 ]
