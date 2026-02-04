@@ -62,7 +62,7 @@ class CategoriesView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.AllowAny()]
-        return [IsManager()]
+        return [permissions.IsAuthenticated(), IsManager()]
 
 # /api/menu-items
 class MenuItemsView(generics.ListCreateAPIView):
@@ -76,7 +76,7 @@ class MenuItemsView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.AllowAny()]
-        return [IsManager()]
+        return [permissions.IsAuthenticated(), IsManager()]
     
 # # /api/menu-items/{menuItem}
 class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
@@ -84,6 +84,6 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MenuItemSerializer
 
     def get_permissions(self):
-        if self.request.method == 'GET':
+        if self.request.method == "GET":
             return [permissions.AllowAny()]
-        return [IsManager()]
+        return [permissions.IsAuthenticated(), IsManager()]
