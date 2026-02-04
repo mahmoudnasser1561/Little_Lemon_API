@@ -27,6 +27,6 @@ urlpatterns = [
     path("api/", include("djoser.urls")),
 
     # token endpoint
-    path("token/", include("djoser.urls.authtoken")),
+    path("", include("djoser.urls.authtoken")),
 ]
 

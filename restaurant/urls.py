@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework.authtoken.views import obtain_auth_token
 
 from . import views
@@ -22,5 +22,6 @@ urlpatterns = [
         views.DeliveryCrewViewSet.as_view({"delete": "destroy"}),
     ),
     
-    path('api-token-auth/', obtain_auth_token)
+    path('api-token-auth/', obtain_auth_token),
+    # path("users/", include("djoser.urls")),
 ]
