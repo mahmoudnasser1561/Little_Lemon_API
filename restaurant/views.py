@@ -1,4 +1,5 @@
 from rest_framework import generics, status, viewsets, permissions
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
@@ -59,24 +60,27 @@ class DeliveryCrewViewSet(viewsets.ViewSet):
 class CategoriesView(generics.ListCreateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
     def get_permissions(self):
-        if self.request.method == 'GET':
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsManager()]
+        permission_classes = []
+        if self.request.method != 'GET':
+            permission_classes = [IsAuthenticated, IsManager()]
+
+        return [permission() for permission in permission_classes]
 
 # /api/menu-items
 class MenuItemsView(generics.ListCreateAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
-    
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    ordering_fields = ['price', 'category']
-    search_fields = ['title', 'category__title']
+    search_fields = ['category__title']
+    ordering_fields = ['price', 'inventory']
 
     def get_permissions(self):
-        if self.request.method == 'GET':
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsManager()]
+        permission_classes = []
+        if self.request.method != 'GET':
+            permission_classes = [IsAuthenticated]
+
+        return [permission() for permission in permission_classes]
     
 # /api/menu-items/{menuItem}
 class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
@@ -84,9 +88,11 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MenuItemSerializer
 
     def get_permissions(self):
-        if self.request.method == "GET":
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsManager()]
+        permission_classes = []
+        if self.request.method != 'GET':
+            permission_classes = [IsAuthenticated]
+
+        return [permission() for permission in permission_classes]
 
 # Cart Management
 # /api/cart/menu-items
