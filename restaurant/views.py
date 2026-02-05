@@ -5,8 +5,8 @@ from django.contrib.auth.models import User, Group
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .permissions import IsManager
-from .models import Category, MenuItem, Cart
-from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer
+from .models import Category, MenuItem, Cart, Order
+from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer, OrderItemSerializer, OrderManagerUpdateSerializer, OrderDeliveryUpdateSerializer
 
 
 # Manager Group Management
@@ -105,14 +105,23 @@ class CartView(generics.ListCreateAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 # Order Management
-# /api/oders
 class OrderView(generics.ListCreateAPIView):
+    serializer_class = OrderItemSerializer
     permission_classes = [permissions.IsAuthenticated]
-    def get(self, request):
-        return Response({"message": "Order list"})
+    
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        return Response(status=status.HTTP_201_CREATED)
 
-# /api/oders/{orderId}
+    def delete(self, request):
+        Cart.objects.filter(user=self.request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class SingleOrderView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self, request, pk):
-        return Response({"message": "Order detail " + str(pk)})
+        return Order.objects.filter(user=self.request.user)
