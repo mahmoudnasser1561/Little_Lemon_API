@@ -20,35 +20,32 @@ class MenuItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'price', 'featured', 'category', 'category_id']
         
 class CartSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    user = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        default=serializers.CurrentUserDefault()
+    )
+
+    def validate(self, attrs):
+        attrs['price'] = attrs['quantity'] * attrs['unit_price']
+        return attrs
+
     class Meta:
         model = Cart
-        fields = ['user', 'menuitem', 'quantity', 'unit_price', 'price']
+        fields = ['user', 'menuitem', 'unit_price', 'quantity', 'price']
+        extra_kwargs = {
+            'price': {'read_only': True}
+        }
+
                 
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ["id", "menuitem", "quantity", "unit_price", "price"]
+        fields = ['order', 'menuitem', 'quantity', 'price']
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, read_only=True)
+    orderitem = OrderItemSerializer(many=True, read_only=True, source='order')
 
     class Meta:
         model = Order
-        fields = ["id", "user", "delivery_crew", "status", "total", "date", "items"]
-        read_only_fields = ["id", "user", "total", "date", "items"]
-
-class OrderManagerUpdateSerializer(serializers.ModelSerializer):
-    delivery_crew = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(groups__name="Delivery crew"),
-        required=False,
-        allow_null=True,
-    )
-    class Meta:
-        model = Order
-        fields = ["delivery_crew", "status"]
-
-class OrderDeliveryUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Order
-        fields = ["status"]
+        fields = ['id', 'user', 'delivery_crew',
+                  'status', 'date', 'total', 'orderitem']
