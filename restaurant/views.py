@@ -5,8 +5,8 @@ from django.contrib.auth.models import User, Group
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .permissions import IsManager
-from .models import Category, MenuItem
-from .serializers import CategorySerializer, MenuItemSerializer
+from .models import Category, MenuItem, Cart
+from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer
 
 
 # Manager Group Management
@@ -87,3 +87,18 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method == "GET":
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated(), IsManager()]
+
+
+class CartView(generics.ListCreateAPIView):
+    serializer_class = CartSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    def get_queryset(self):
+        return Cart.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        return Response(status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        Cart.objects.filter(user=self.request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
