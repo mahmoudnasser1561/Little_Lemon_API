@@ -7,8 +7,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .permissions import IsManager
 from .models import Category, MenuItem, Cart, Order, OrderItem
-from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer, OrderSerializer
-
+from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer, OrderSerializer, UserSerializer
 
 # Manager Group Management
 class GroupViewSet(viewsets.ViewSet):
@@ -16,22 +15,23 @@ class GroupViewSet(viewsets.ViewSet):
     
     # GET /api/groups/manager/users
     def list(self, request):
-        users = User.objects.filter(groups__name='Manager')
-        return Response([user.username for user in users])
+        users = User.objects.all().filter(groups__name='Manager')
+        items = UserSerializer(users, many=True)
+        return Response(items.data)
 
     # POST /api/groups/manager/users
     def create(self, request):
         user = get_object_or_404(User, username=request.data['username'])
         manager_group = Group.objects.get(name='Manager')
         manager_group.user_set.add(user)
-        return Response(status=status.HTTP_201_CREATED)
+        return Response({"message": "user added to the manager group"}, status=status.HTTP_201_CREATED)
 
     # DELETE /api/groups/manager/users/{userId}
-    def destroy(self, request, userId=None):
-        user = get_object_or_404(User, id=userId)
-        manager_group = Group.objects.get(name="Manager")
-        manager_group.user_set.remove(user)
-        return Response(status=status.HTTP_200_OK)
+    def destroy(self, request):
+        user = get_object_or_404(User, username=request.data['username'])
+        managers = Group.objects.get(name="Manager")
+        managers.user_set.remove(user)
+        return Response({"message": "user removed from the manager group"}, status=status.HTTP_201_CREATED)
     
 # Delivery Crew Management
 class DeliveryCrewViewSet(viewsets.ViewSet):
@@ -165,6 +165,12 @@ class OrderView(generics.ListCreateAPIView):
 
 
 class SingleOrderView(generics.RetrieveUpdateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, pk):
-        return Order.objects.filter(user=self.request.user)
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        if self.request.user.groups.count()==0: # Normal user, not belonging to any group = Customer
+            return Response('Not Ok')
+        else: #everyone else - Super Admin, Manager and Delivery Crew
+            return super().update(request, *args, **kwargs)
