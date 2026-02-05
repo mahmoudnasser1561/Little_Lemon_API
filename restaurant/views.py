@@ -78,7 +78,7 @@ class MenuItemsView(generics.ListCreateAPIView):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated(), IsManager()]
     
-# # /api/menu-items/{menuItem}
+# /api/menu-items/{menuItem}
 class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
@@ -88,7 +88,8 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated(), IsManager()]
 
-
+# Cart Management
+# /api/cart/menu-items
 class CartView(generics.ListCreateAPIView):
     serializer_class = CartSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -102,3 +103,16 @@ class CartView(generics.ListCreateAPIView):
     def delete(self, request):
         Cart.objects.filter(user=self.request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+# Order Management
+# /api/oders
+class OrderView(generics.ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        return Response({"message": "Order list"})
+
+# /api/oders/{orderId}
+class SingleOrderView(generics.RetrieveUpdateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request, pk):
+        return Response({"message": "Order detail " + str(pk)})
