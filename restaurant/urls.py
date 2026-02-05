@@ -36,4 +36,9 @@ urlpatterns = [
         'menu-items/<int:pk>', 
         views.SingleMenuItemView.as_view()
     ),
+    
+    path(
+        'cart/menu-items', 
+        views.CartView.as_view()
+    ),
 ]
