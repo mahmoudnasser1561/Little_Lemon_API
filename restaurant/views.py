@@ -1,10 +1,8 @@
-from rest_framework import generics, status, viewsets, permissions
+from rest_framework import generics, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
-from rest_framework.filters import SearchFilter, OrderingFilter
-from django_filters.rest_framework import DjangoFilterBackend
 from .permissions import IsManager
 from .models import Category, MenuItem, Cart, Order, OrderItem
 from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer, OrderSerializer, UserSerializer
@@ -27,11 +25,11 @@ class GroupViewSet(viewsets.ViewSet):
         return Response({"message": "user added to the manager group"}, status=status.HTTP_201_CREATED)
 
     # DELETE /api/groups/manager/users/{userId}
-    def destroy(self, request):
-        user = get_object_or_404(User, username=request.data['username'])
+    def destroy(self, request, userId=None):
+        user = get_object_or_404(User, id=userId)
         managers = Group.objects.get(name="Manager")
         managers.user_set.remove(user)
-        return Response({"message": "user removed from the manager group"}, status=status.HTTP_201_CREATED)
+        return Response({"message": "user removed from the manager group"}, status=status.HTTP_200_OK)
     
 # Delivery Crew Management
 class DeliveryCrewViewSet(viewsets.ViewSet):
@@ -64,13 +62,12 @@ class CategoriesView(generics.ListCreateAPIView):
     def get_permissions(self):
         permission_classes = []
         if self.request.method != 'GET':
-            permission_classes = [IsAuthenticated, IsManager()]
-
+            permission_classes = [IsAuthenticated, IsManager]
         return [permission() for permission in permission_classes]
 
 # /api/menu-items
 class MenuItemsView(generics.ListCreateAPIView):
-    queryset = MenuItem.objects.all()
+    queryset = MenuItem.objects.all().order_by("id")
     serializer_class = MenuItemSerializer
     search_fields = ['category__title']
     ordering_fields = ['price', 'inventory']
@@ -145,14 +142,13 @@ class OrderView(generics.ListCreateAPIView):
                 orderitem = OrderItem(
                     order=order,
                     menuitem_id=item['menuitem_id'],
+                    unit_price=item['unit_price'],
                     price=item['price'],
                     quantity=item['quantity'],
                 )
                 orderitem.save()
 
             Cart.objects.all().filter(user=self.request.user).delete()
-            result = order_serializer.data.copy()
-            result['total'] = total
             return Response(order_serializer.data)
     
     def get_total_price(self, user):
