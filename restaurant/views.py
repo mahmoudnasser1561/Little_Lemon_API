@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .permissions import IsManager
 from .models import Category, MenuItem, Order, OrderItem
-from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, UserSerializer
+from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, OrderUpdateSerializer, UserSerializer
 from cart.services import get_cart_items, get_cart_total, clear_cart
 from delivery_crew.services import is_delivery_crew
 
@@ -104,6 +104,11 @@ class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
 class SingleOrderView(OrderQuerysetMixin, generics.RetrieveUpdateAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+
+    def get_serializer_class(self):
+        if self.request.method in SAFE_METHODS:
+            return OrderSerializer
+        return OrderUpdateSerializer
 
     def get_permissions(self):
         permission_classes = [IsAuthenticated]
