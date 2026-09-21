@@ -1,5 +1,5 @@
 from rest_framework import generics, status, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
@@ -127,10 +127,9 @@ class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
 class SingleOrderView(OrderQuerysetMixin, generics.RetrieveUpdateAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
 
-    def update(self, request, *args, **kwargs):
-        if self.request.user.groups.count()==0: # Normal user, not belonging to any group = Customer
-            return Response('Not Ok')
-        else: #everyone else - Super Admin, Manager and Delivery Crew
-            return super().update(request, *args, **kwargs)
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated]
+        if self.request.method not in SAFE_METHODS:
+            permission_classes = [IsAuthenticated, IsManager]
+        return [permission() for permission in permission_classes]
