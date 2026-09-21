@@ -1,12 +1,12 @@
-from rest_framework import generics, status, viewsets
+from rest_framework import generics, viewsets
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User
 from .permissions import IsManager
-from .models import Category, MenuItem, Order, OrderItem, DeliveryCrewUser
-from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, UserSerializer, DeliveryCrewUserSerializer
+from .models import Category, MenuItem, Order, OrderItem
+from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, UserSerializer
 from cart.services import get_cart_items, get_cart_total, clear_cart
+from delivery_crew.services import is_delivery_crew
 
 # Manager Group Management
 class GroupViewSet(viewsets.ViewSet):
@@ -18,29 +18,6 @@ class GroupViewSet(viewsets.ViewSet):
         items = UserSerializer(users, many=True)
         return Response(items.data)
 
-# Delivery Crew Management
-class DeliveryCrewViewSet(viewsets.ViewSet):
-    permission_classes = [IsManager]
-    
-    # GET /api/groups/delivery-crew/users
-    def list(self, request):
-        users = User.objects.filter(groups__name='Delivery Crew')
-        return Response([user.username for user in users])
-
-    # POST /api/groups/delivery-crew/users
-    def create(self, request):
-        serializer = DeliveryCrewUserSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    # DELETE /api/groups/delivery-crew/users/{userId}
-    def destroy(self, request, userId=None):
-        user = get_object_or_404(DeliveryCrewUser, id=userId)
-        dc_group = Group.objects.get(name="Delivery Crew")
-        dc_group.user_set.remove(user)
-        return Response(status=status.HTTP_200_OK)
-    
 # /api/categories
 class CategoriesView(generics.ListCreateAPIView):
     queryset = Category.objects.all()
@@ -85,7 +62,7 @@ class OrderQuerysetMixin:
         user = self.request.user
         if user.is_superuser or user.groups.filter(name='Manager').exists():
             return Order.objects.all()
-        elif user.groups.filter(name='Delivery Crew').exists():
+        elif is_delivery_crew(user):
             return Order.objects.filter(delivery_crew=user)
         return Order.objects.filter(user=user)
 

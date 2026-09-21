@@ -23,6 +23,7 @@ urlpatterns = [
     # app endpoints
     path("api/", include("restaurant.urls")),
     path("api/", include("cart.urls")),
+    path("api/", include("delivery_crew.urls")),
 
     # djoser endpoints 
     path("api/", include("djoser.urls")),

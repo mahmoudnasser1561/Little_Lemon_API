@@ -6,7 +6,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 
-from restaurant.models import ManagerUser, DeliveryCrewUser
+from restaurant.models import ManagerUser
+from delivery_crew.models import DeliveryCrewUser
 
 
 def create_customer(username, password, email=''):

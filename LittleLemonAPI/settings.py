@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "django_filters",
     "restaurant",
     "cart",
+    "delivery_crew",
 ]
 
 MIDDLEWARE = [

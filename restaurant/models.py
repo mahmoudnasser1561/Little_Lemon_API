@@ -52,17 +52,8 @@ class RoleUserManager(UserManager):
 class ManagerUserManager(RoleUserManager):
     role = 'Manager'
 
-class DeliveryCrewUserManager(RoleUserManager):
-    role = 'Delivery Crew'
-
 class ManagerUser(User):
     objects = ManagerUserManager()
-
-    class Meta:
-        proxy = True
-
-class DeliveryCrewUser(User):
-    objects = DeliveryCrewUserManager()
 
     class Meta:
         proxy = True
