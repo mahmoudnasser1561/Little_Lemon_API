@@ -150,7 +150,4 @@ REST_FRAMEWORK = {
 
 DJOSER = {
     "LOGIN_ID_FIELD": "username",
-    "SERIALIZERS": {
-        "user_create": "restaurant.serializers.UserSerializer",   
-    }
 }
