@@ -92,22 +92,20 @@ class CartView(generics.ListCreateAPIView):
         return Response("ok")
 
 # Order Management
-class OrderView(generics.ListCreateAPIView):
+# Managers see all orders, delivery crew only their assigned orders, everyone else only their own
+class OrderQuerysetMixin:
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Manager').exists():
+            return Order.objects.all()
+        elif user.groups.filter(name='Delivery Crew').exists():
+            return Order.objects.filter(delivery_crew=user)
+        return Order.objects.filter(user=user)
+
+class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        if self.request.user.is_superuser:
-            return Order.objects.all()
-        elif self.request.user.groups.count()==0: #normal customer - no group
-            return Order.objects.all().filter(user=self.request.user)
-        elif self.request.user.groups.filter(name='Delivery Crew').exists(): #delivery crew
-            return Order.objects.all().filter(delivery_crew=self.request.user)  #only show oreders assigned to him
-        else: #delivery crew or manager
-            return Order.objects.all()
-        # else:
-        #     return Order.objects.all()
 
     def create(self, request, *args, **kwargs):
         menuitem_count = Cart.objects.all().filter(user=self.request.user).count()
@@ -146,7 +144,7 @@ class OrderView(generics.ListCreateAPIView):
 
 
 
-class SingleOrderView(generics.RetrieveUpdateAPIView):
+class SingleOrderView(OrderQuerysetMixin, generics.RetrieveUpdateAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
