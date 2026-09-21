@@ -5,14 +5,10 @@ from . import views
 
 urlpatterns = [
     path(
-        'groups/manager/users', 
-        views.GroupViewSet.as_view({'get': 'list', 'post': 'create'})
+        'groups/manager/users',
+        views.GroupViewSet.as_view({'get': 'list'})
     ),
-    path(
-        "groups/manager/users/<int:userId>",
-        views.GroupViewSet.as_view({"delete": "destroy"}),
-    ),
-    
+
     path(
         'groups/delivery-crew/users', 
          views.DeliveryCrewViewSet.as_view({'get': 'list', 'post': 'create'})
