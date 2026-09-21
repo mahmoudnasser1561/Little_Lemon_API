@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from .permissions import IsManager
-from .models import Category, MenuItem, Cart, Order, OrderItem, DeliveryCrewUser
-from .serializers import CategorySerializer, MenuItemSerializer, CartSerializer, OrderSerializer, UserSerializer, DeliveryCrewUserSerializer
+from .models import Category, MenuItem, Order, OrderItem, DeliveryCrewUser
+from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, UserSerializer, DeliveryCrewUserSerializer
+from cart.services import get_cart_items, get_cart_total, clear_cart
 
 # Manager Group Management
 class GroupViewSet(viewsets.ViewSet):
@@ -77,20 +78,6 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
 
         return [permission() for permission in permission_classes]
 
-# Cart Management
-# /api/cart/menu-items
-class CartView(generics.ListCreateAPIView):
-    queryset = Cart.objects.all()
-    serializer_class = CartSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return Cart.objects.all().filter(user=self.request.user)
-
-    def delete(self, request, *args, **kwargs):
-        Cart.objects.all().filter(user=self.request.user).delete()
-        return Response("ok")
-
 # Order Management
 # Managers see all orders, delivery crew only their assigned orders, everyone else only their own
 class OrderQuerysetMixin:
@@ -108,19 +95,19 @@ class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        menuitem_count = Cart.objects.all().filter(user=self.request.user).count()
+        menuitem_count = get_cart_items(self.request.user).count()
         if menuitem_count == 0:
             return Response({"message:": "no item in cart"})
 
         data = request.data.copy()
-        total = self.get_total_price(self.request.user)
+        total = get_cart_total(self.request.user)
         data['total'] = total
         data['user'] = self.request.user.id
         order_serializer = OrderSerializer(data=data)
         if (order_serializer.is_valid()):
             order = order_serializer.save()
 
-            items = Cart.objects.all().filter(user=self.request.user).all()
+            items = get_cart_items(self.request.user)
 
             for item in items.values():
                 orderitem = OrderItem(
@@ -132,15 +119,8 @@ class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
                 )
                 orderitem.save()
 
-            Cart.objects.all().filter(user=self.request.user).delete()
+            clear_cart(self.request.user)
             return Response(order_serializer.data)
-    
-    def get_total_price(self, user):
-        total = 0
-        items = Cart.objects.all().filter(user=user).all()
-        for item in items.values():
-            total += item['price']
-        return total
 
 
 

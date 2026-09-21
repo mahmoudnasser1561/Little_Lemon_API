@@ -34,12 +34,7 @@ urlpatterns = [
     ),
     
     path(
-        'cart/menu-items', 
-        views.CartView.as_view()
-    ),
-    
-    path(
-        'orders', 
+        'orders',
         views.OrderView.as_view()
     ),
     

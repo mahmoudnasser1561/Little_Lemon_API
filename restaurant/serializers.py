@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.serializers import as_serializer_error
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from .models import Category, MenuItem, Cart, OrderItem, Order, DeliveryCrewUser
+from .models import Category, MenuItem, OrderItem, Order, DeliveryCrewUser
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -35,24 +35,6 @@ class MenuItemSerializer(serializers.ModelSerializer):
         model = MenuItem
         fields = ['id', 'title', 'price', 'featured', 'category', 'category_id']
         
-class CartSerializer(serializers.ModelSerializer):
-    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
-
-    def validate(self, attrs):
-        attrs['unit_price'] = attrs['menuitem'].price
-        attrs['price'] = attrs['quantity'] * attrs['unit_price']
-        return attrs
-
-    class Meta:
-        model = Cart
-        fields = ['user', 'menuitem', 'unit_price', 'quantity', 'price']
-        extra_kwargs = {
-            'unit_price': {'read_only': True},
-            'quantity': {'min_value': 1},
-            'price': {'read_only': True}
-        }
-
-                
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
