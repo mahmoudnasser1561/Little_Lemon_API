@@ -75,7 +75,7 @@ class MenuItemsView(generics.ListCreateAPIView):
     def get_permissions(self):
         permission_classes = []
         if self.request.method != 'GET':
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, IsManager]
 
         return [permission() for permission in permission_classes]
     
@@ -87,7 +87,7 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         permission_classes = []
         if self.request.method != 'GET':
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, IsManager]
 
         return [permission() for permission in permission_classes]
 
