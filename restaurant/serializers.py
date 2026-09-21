@@ -36,12 +36,10 @@ class MenuItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'price', 'featured', 'category', 'category_id']
         
 class CartSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        default=serializers.CurrentUserDefault()
-    )
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     def validate(self, attrs):
+        attrs['unit_price'] = attrs['menuitem'].price
         attrs['price'] = attrs['quantity'] * attrs['unit_price']
         return attrs
 
@@ -49,6 +47,8 @@ class CartSerializer(serializers.ModelSerializer):
         model = Cart
         fields = ['user', 'menuitem', 'unit_price', 'quantity', 'price']
         extra_kwargs = {
+            'unit_price': {'read_only': True},
+            'quantity': {'min_value': 1},
             'price': {'read_only': True}
         }
 
