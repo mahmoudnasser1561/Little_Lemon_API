@@ -1,8 +1,10 @@
 import os
+import re
 from io import StringIO
 from unittest import mock
 
 from django.contrib.auth.models import AnonymousUser, Group, User
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -18,6 +20,10 @@ ME = '/api/users/me/'
 LOGIN = '/api/api-token-auth/'
 DJOSER_LOGIN = '/token/login/'
 MANAGERS = '/api/groups/manager/users'
+RESET_PASSWORD = '/api/users/reset_password/'
+RESET_PASSWORD_CONFIRM = '/api/users/reset_password_confirm/'
+RESET_USERNAME = '/api/users/reset_username/'
+RESET_USERNAME_CONFIRM = '/api/users/reset_username_confirm/'
 
 
 class RegistrationAndLoginTests(BaseAPITestCase):
@@ -73,21 +79,106 @@ class RegistrationAndLoginTests(BaseAPITestCase):
     def test_email_is_optional(self):
         self.assertEqual(self.signup(email='').status_code, status.HTTP_201_CREATED)
 
-    @known_bug('B30')
     def test_reset_password_does_not_reveal_which_emails_are_registered(self):
         self.make_customer(email='known@example.com')
         client = self.client_for()
-        known = client.post('/api/users/reset_password/', {'email': 'known@example.com'}, format='json')
-        unknown = client.post('/api/users/reset_password/', {'email': 'nobody@example.com'}, format='json')
+        known = client.post(RESET_PASSWORD, {'email': 'known@example.com'}, format='json')
+        unknown = client.post(RESET_PASSWORD, {'email': 'nobody@example.com'}, format='json')
         self.assertEqual(known.status_code, unknown.status_code)
 
-    @known_bug('B30')
     def test_reset_username_does_not_reveal_which_emails_are_registered(self):
         self.make_customer(email='known@example.com')
         client = self.client_for()
-        known = client.post('/api/users/reset_username/', {'email': 'known@example.com'}, format='json')
-        unknown = client.post('/api/users/reset_username/', {'email': 'nobody@example.com'}, format='json')
+        known = client.post(RESET_USERNAME, {'email': 'known@example.com'}, format='json')
+        unknown = client.post(RESET_USERNAME, {'email': 'nobody@example.com'}, format='json')
         self.assertEqual(known.status_code, unknown.status_code)
+
+
+class ForgotPasswordTests(BaseAPITestCase):
+    """B30: a user who forgot their password requests a reset email, follows its link, and sets a new one."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.make_customer(email='alice@example.com')
+        mail.outbox = []
+
+    def request_reset(self, email='alice@example.com'):
+        return self.client_for().post(RESET_PASSWORD, {'email': email}, format='json')
+
+    def uid_and_token_from(self, email_body):
+        match = re.search(r'reset-password/([\w-]+)/([\w.\-]+)', email_body)
+        self.assertIsNotNone(match, f'no reset link found in the email:\n{email_body}')
+        return match.group(1), match.group(2)
+
+    def test_requesting_a_reset_sends_one_email_with_a_working_link(self):
+        response = self.request_reset()
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['alice@example.com'])
+        uid, token = self.uid_and_token_from(mail.outbox[0].body)
+        self.assertTrue(uid and token)
+
+    def test_the_link_points_at_the_frontend_not_the_api(self):
+        self.request_reset()
+        self.assertIn('http://localhost:3000/reset-password/', mail.outbox[0].body)
+
+    def test_requesting_a_reset_for_an_unknown_email_sends_nothing(self):
+        response = self.request_reset('nobody@example.com')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_the_full_round_trip_sets_a_new_password(self):
+        self.request_reset()
+        uid, token = self.uid_and_token_from(mail.outbox[0].body)
+        client = self.client_for()
+        response = client.post(RESET_PASSWORD_CONFIRM, {'uid': uid, 'token': token, 'new_password': 'N3wPass!456'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        old = client.post(LOGIN, {'username': 'customer', 'password': PASSWORD}, format='json')
+        new = client.post(LOGIN, {'username': 'customer', 'password': 'N3wPass!456'}, format='json')
+        self.assertEqual(old.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(new.status_code, status.HTTP_200_OK)
+
+    def test_a_used_token_cannot_be_used_again(self):
+        self.request_reset()
+        uid, token = self.uid_and_token_from(mail.outbox[0].body)
+        client = self.client_for()
+        client.post(RESET_PASSWORD_CONFIRM, {'uid': uid, 'token': token, 'new_password': 'N3wPass!456'}, format='json')
+        replay = client.post(RESET_PASSWORD_CONFIRM, {'uid': uid, 'token': token, 'new_password': 'Another!789'}, format='json')
+        self.assertEqual(replay.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_wrong_token_is_rejected(self):
+        self.request_reset()
+        uid, _ = self.uid_and_token_from(mail.outbox[0].body)
+        response = self.client_for().post(RESET_PASSWORD_CONFIRM, {'uid': uid, 'token': 'not-the-real-token', 'new_password': 'N3wPass!456'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_the_new_password_is_still_validated(self):
+        self.request_reset()
+        uid, token = self.uid_and_token_from(mail.outbox[0].body)
+        response = self.client_for().post(RESET_PASSWORD_CONFIRM, {'uid': uid, 'token': token, 'new_password': '123'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(User.objects.get(pk=self.user.pk).check_password(PASSWORD))
+
+
+class ForgotUsernameTests(BaseAPITestCase):
+    """The same flow, for a forgotten username."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.make_customer(email='alice@example.com')
+        mail.outbox = []
+
+    def test_the_full_round_trip_sets_a_new_username(self):
+        self.client_for().post(RESET_USERNAME, {'email': 'alice@example.com'}, format='json')
+        self.assertEqual(len(mail.outbox), 1)
+        match = re.search(r'reset-username/([\w-]+)/([\w.\-]+)', mail.outbox[0].body)
+        self.assertIsNotNone(match)
+        uid, token = match.group(1), match.group(2)
+
+        response = self.client_for().post(RESET_USERNAME_CONFIRM, {'uid': uid, 'token': token, 'new_username': 'alice2'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(User.objects.get(pk=self.user.pk).username, 'alice2')
 
 
 class ProfileTests(BaseAPITestCase):

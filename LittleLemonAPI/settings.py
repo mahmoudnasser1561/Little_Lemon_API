@@ -152,4 +152,14 @@ REST_FRAMEWORK = {
 
 DJOSER = {
     "LOGIN_ID_FIELD": "username",
+    "PASSWORD_RESET_CONFIRM_URL": "reset-password/{uid}/{token}",
+    "USERNAME_RESET_CONFIRM_URL": "reset-username/{uid}/{token}",
+    "EMAIL_FRONTEND_PROTOCOL": "http",
+    "EMAIL_FRONTEND_DOMAIN": "localhost:3000",
+    "EMAIL_FRONTEND_SITE_NAME": "Little Lemon",
 }
+
+# The frontend runs at EMAIL_FRONTEND_DOMAIN above and owns the /reset-password and /reset-username
+# routes; it reads {uid}/{token} from the URL and calls the matching *_confirm endpoint.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@littlelemon.local"
