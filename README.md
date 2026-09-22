@@ -132,9 +132,11 @@ Note:
 
 ### Cart
 
-- `GET /api/cart/menu-items`
-- `POST /api/cart/menu-items`
-- `DELETE /api/cart/menu-items`
+- `GET /api/cart/menu-items` — the whole cart in one response: `{"items": [...], "total": "..."}`, no pagination. Each item shows the menu item's id, title, current unit price and quantity; prices are always read live from the menu, never from a stored copy.
+- `POST /api/cart/menu-items` — body: `{"menuitem": <id>, "quantity": <n>}`. Adding an item already in the cart adds to its quantity instead of failing. Quantity is capped at 99 per line.
+- `PATCH /api/cart/menu-items/<menuitem_id>` — body: `{"quantity": <n>}`. Sets a single line's quantity.
+- `DELETE /api/cart/menu-items/<menuitem_id>` — removes a single line.
+- `DELETE /api/cart/menu-items` — clears the whole cart.
 
 ### Orders
 
@@ -207,13 +209,13 @@ curl -X POST "$BASE_URL/api/groups/delivery-crew/users" \
   -d '{"username":"delivery_user"}'
 ```
 
-5. Add item to cart:
+5. Add item to cart (the price is always taken from the menu, never from the request):
 
 ```bash
 curl -X POST "$BASE_URL/api/cart/menu-items" \
   -H "Authorization: Token $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"menuitem":1,"unit_price":"12.50","quantity":2}'
+  -d '{"menuitem":1,"quantity":2}'
 ```
 
 6. Create order from cart:
