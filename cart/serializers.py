@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Cart
+from .models import Cart, MAX_QUANTITY_PER_LINE
 
 class CartSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
@@ -14,7 +14,7 @@ class CartSerializer(serializers.ModelSerializer):
         fields = ['user', 'menuitem', 'unit_price', 'quantity', 'price']
         extra_kwargs = {
             'unit_price': {'read_only': True},
-            'quantity': {'min_value': 1},
+            'quantity': {'min_value': 1, 'max_value': MAX_QUANTITY_PER_LINE},
             'price': {'read_only': True}
         }
 

@@ -1,7 +1,7 @@
 from django.db import IntegrityError, transaction
 from rest_framework import status
 
-from cart.models import Cart
+from cart.models import MAX_QUANTITY_PER_LINE, Cart
 from cart.services import clear_cart, get_cart_items, get_cart_total
 from LittleLemonAPI.testing import BaseAPITestCase, known_bug
 from restaurant.models import MenuItem
@@ -81,13 +81,17 @@ class AddToCartTests(CartTestCase):
         self.assertEqual((line['unit_price'], line['price']), ('15.00', '30.00'))
         self.assertEqual(client.get(CART).data['total'], '30.00')
 
-    @known_bug('B11')
     def test_a_huge_quantity_is_not_a_server_error(self):
+        """The cart side of B11: a single line's quantity is capped, so it can no longer overflow the price field."""
         self.assertLess(self.add(self.client_for(self.alice), self.salad, 1000).status_code, 500)
 
-    @known_bug('C4')
     def test_a_quantity_above_the_cap_is_rejected(self):
         self.assertEqual(self.add(self.client_for(self.alice), self.salad, 100).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_a_quantity_at_the_cap_is_accepted(self):
+        response = self.add(self.client_for(self.alice), self.salad, MAX_QUANTITY_PER_LINE)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @known_bug('C2')
     def test_adding_an_item_that_is_already_in_the_cart_adds_to_its_quantity(self):
