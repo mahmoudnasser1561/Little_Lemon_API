@@ -4,6 +4,7 @@ from rest_framework import status
 from cart.models import Cart
 from cart.services import clear_cart, get_cart_items, get_cart_total
 from LittleLemonAPI.testing import BaseAPITestCase, known_bug
+from restaurant.models import MenuItem
 
 CART = '/api/cart/menu-items'
 
@@ -71,6 +72,14 @@ class AddToCartTests(CartTestCase):
         self.add(self.client_for(self.bob), self.salad, user=self.alice.id)
         self.assertEqual(Cart.objects.filter(user=self.alice).count(), 0)
         self.assertEqual(Cart.objects.filter(user=self.bob).count(), 1)
+
+    def test_the_cart_shows_the_current_menu_price_even_if_it_changed_after_adding(self):
+        client = self.client_for(self.alice)
+        self.add(client, self.salad, 2)
+        MenuItem.objects.filter(pk=self.salad.pk).update(price='15.00')
+        line = self.cart_lines(client)[0]
+        self.assertEqual((line['unit_price'], line['price']), ('15.00', '30.00'))
+        self.assertEqual(client.get(CART).data['total'], '30.00')
 
     @known_bug('B11')
     def test_a_huge_quantity_is_not_a_server_error(self):
@@ -204,6 +213,10 @@ class CartServicesTests(CartTestCase):
 
     def test_the_total_of_an_empty_cart_is_zero(self):
         self.assertEqual(get_cart_total(self.make_customer('carol')), 0)
+
+    def test_the_total_uses_the_current_menu_price(self):
+        MenuItem.objects.filter(pk=self.salad.pk).update(price='15.00')
+        self.assertEqual(str(get_cart_total(self.alice)), '50.00')  # 2 x 15.00 + 1 x 20.00
 
     def test_clear_cart_only_clears_the_users_cart(self):
         clear_cart(self.alice)

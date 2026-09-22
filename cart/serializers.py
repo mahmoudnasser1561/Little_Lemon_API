@@ -19,9 +19,17 @@ class CartSerializer(serializers.ModelSerializer):
         }
 
 class CartItemSerializer(serializers.ModelSerializer):
-    """Read-only view of a cart line, including the product's name."""
+    """Read-only view of a cart line. Prices are always read live from the menu, never from the stored copy."""
     title = serializers.CharField(source='menuitem.title', read_only=True)
+    unit_price = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
         fields = ['menuitem', 'title', 'unit_price', 'quantity', 'price']
+
+    def get_unit_price(self, cart_item):
+        return str(cart_item.menuitem.price)
+
+    def get_price(self, cart_item):
+        return str(cart_item.quantity * cart_item.menuitem.price)
