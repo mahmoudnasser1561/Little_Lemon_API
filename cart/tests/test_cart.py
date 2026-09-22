@@ -21,13 +21,7 @@ class CartTestCase(BaseAPITestCase):
         return client.post(CART, {'menuitem': item.id, 'quantity': quantity, **extra}, format='json')
 
     def cart_lines(self, client):
-        """Every line of the cart, whether the cart is paginated or not."""
-        data = client.get(CART).data
-        lines = list(data.get('items', data.get('results')))
-        while data.get('next'):
-            data = client.get(data['next']).data
-            lines += data.get('items', data.get('results'))
-        return lines
+        return client.get(CART).data['items']
 
     def cart_summary(self, client):
         return sorted((line['menuitem'], line['quantity'], line['price']) for line in self.cart_lines(client))
@@ -107,26 +101,25 @@ class ViewCartTests(CartTestCase):
     def test_anonymous_user_has_no_cart(self):
         self.assertEqual(self.client_for().get(CART).status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @known_bug('C1')
     def test_the_cart_shows_the_total(self):
         client = self.client_for(self.alice)
         self.add(client, self.salad, 2)
         self.add(client, self.steak, 1)
         self.assertEqual(client.get(CART).data.get('total'), '45.00')
 
-    @known_bug('C1')
+    def test_an_empty_carts_total_is_zero(self):
+        self.assertEqual(self.client_for(self.alice).get(CART).data.get('total'), '0.00')
+
     def test_the_cart_shows_the_product_names(self):
         client = self.client_for(self.alice)
         self.add(client, self.salad)
         self.assertEqual([line.get('title') for line in self.cart_lines(client)], ['Greek Salad'])
 
-    @known_bug('C1')
     def test_the_whole_cart_comes_back_in_one_response(self):
         client = self.client_for(self.alice)
         for item in (self.salad, self.steak, self.soup):
             self.add(client, item)
-        data = client.get(CART).data
-        self.assertEqual(len(data.get('items', data.get('results'))), 3)
+        self.assertEqual(len(client.get(CART).data['items']), 3)
 
     @known_bug('C3')
     def test_a_line_can_be_changed_to_another_quantity(self):
@@ -180,8 +173,7 @@ class CartPrivacyTests(CartTestCase):
         client = self.client_for(self.bob)
         for query in (f'?user={self.alice.id}', f'?user__id={self.alice.id}', '?search=alice', '?ordering=-user', f'?menuitem={self.salad.id}'):
             with self.subTest(query):
-                lines = client.get(CART + query).data
-                self.assertEqual([line['menuitem'] for line in lines.get('items', lines.get('results'))], [self.soup.id])
+                self.assertEqual([line['menuitem'] for line in client.get(CART + query).data['items']], [self.soup.id])
 
     def test_a_customer_cannot_change_or_remove_a_line_they_do_not_have(self):
         client = self.client_for(self.bob)

@@ -58,13 +58,14 @@ class BaseAPITestCase(APITestCase):
         return client
 
     def list_all(self, client, url):
-        """Every item of a paginated list, following the next links."""
+        """Every item of a list endpoint: paginated ('results'/'next') or not (a plain 'items' list, like the cart)."""
         items, next_url = [], url
         while next_url:
             response = client.get(next_url)
             self.assertEqual(response.status_code, 200)
-            items += response.data['results']
-            next_url = response.data['next']
+            page = response.data
+            items += page['items'] if 'items' in page else page['results']
+            next_url = page.get('next')
         return items
 
     # Menu
