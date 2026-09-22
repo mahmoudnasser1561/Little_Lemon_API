@@ -102,7 +102,6 @@ class CheckoutTests(OrderTestCase):
         self.add_to_cart(client, self.salad)
         self.assertEqual(client.post(ORDERS, {}, format='json').status_code, status.HTTP_200_OK)
 
-    @known_bug('B29')
     def test_checkout_uses_the_current_menu_price(self):
         client = self.client_for(self.alice)
         self.add_to_cart(client, self.salad, 2)
