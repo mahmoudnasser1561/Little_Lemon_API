@@ -106,7 +106,10 @@ class CheckoutTests(OrderTestCase):
         client = self.client_for(self.alice)
         self.add_to_cart(client, self.salad, 2)
         MenuItem.objects.filter(pk=self.salad.pk).update(price='15.00')
-        self.assertEqual(self.check_out(client).data['total'], '30.00')
+        response = self.check_out(client)
+        self.assertEqual(response.data['total'], '30.00')
+        line = OrderItem.objects.get(order_id=response.data['id'])
+        self.assertEqual((str(line.unit_price), str(line.price)), ('15.00', '30.00'))
 
     @known_bug('B14')
     def test_an_order_shows_the_products_that_were_ordered(self):

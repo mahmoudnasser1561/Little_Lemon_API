@@ -86,13 +86,13 @@ class OrderView(OrderQuerysetMixin, generics.ListCreateAPIView):
 
             items = get_cart_items(self.request.user)
 
-            for item in items.values():
+            for item in items:
                 orderitem = OrderItem(
                     order=order,
-                    menuitem_id=item['menuitem_id'],
-                    unit_price=item['unit_price'],
-                    price=item['price'],
-                    quantity=item['quantity'],
+                    menuitem=item.menuitem,
+                    unit_price=item.menuitem.price,
+                    price=item.quantity * item.menuitem.price,
+                    quantity=item.quantity,
                 )
                 orderitem.save()
 
