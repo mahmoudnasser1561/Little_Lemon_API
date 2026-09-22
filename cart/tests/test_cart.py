@@ -3,7 +3,7 @@ from rest_framework import status
 
 from cart.models import MAX_QUANTITY_PER_LINE, Cart
 from cart.services import clear_cart, get_cart_items, get_cart_total
-from LittleLemonAPI.testing import BaseAPITestCase, known_bug
+from LittleLemonAPI.testing import BaseAPITestCase
 from restaurant.models import MenuItem
 
 CART = '/api/cart/menu-items'
@@ -141,20 +141,37 @@ class ViewCartTests(CartTestCase):
             self.add(client, item)
         self.assertEqual(len(client.get(CART).data['items']), 3)
 
-    @known_bug('C3')
     def test_a_line_can_be_changed_to_another_quantity(self):
         client = self.client_for(self.alice)
         self.add(client, self.salad, 1)
         self.assertEqual(client.patch(f'{CART}/{self.salad.id}', {'quantity': 5}, format='json').status_code, status.HTTP_200_OK)
         self.assertEqual(self.cart_summary(client), [(self.salad.id, 5, '62.50')])
 
-    @known_bug('C3')
+    def test_a_lines_quantity_must_stay_within_bounds(self):
+        client = self.client_for(self.alice)
+        self.add(client, self.salad, 1)
+        for label, quantity in (('zero', 0), ('negative', -3), ('above the cap', MAX_QUANTITY_PER_LINE + 1)):
+            with self.subTest(label):
+                self.assertEqual(client.patch(f'{CART}/{self.salad.id}', {'quantity': quantity}, format='json').status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Cart.objects.get(menuitem=self.salad).quantity, 1)
+
     def test_a_single_line_can_be_removed(self):
         client = self.client_for(self.alice)
         self.add(client, self.salad)
         self.add(client, self.steak)
-        self.assertLess(client.delete(f'{CART}/{self.salad.id}').status_code, 300)
+        self.assertEqual(client.delete(f'{CART}/{self.salad.id}').status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual([line['menuitem'] for line in self.cart_lines(client)], [self.steak.id])
+
+    def test_removing_a_line_that_is_not_there_is_not_found(self):
+        self.assertEqual(self.client_for(self.alice).delete(f'{CART}/{self.salad.id}').status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_changing_a_line_that_is_not_there_is_not_found(self):
+        response = self.client_for(self.alice).patch(f'{CART}/{self.salad.id}', {'quantity': 2}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_anonymous_user_cannot_change_or_remove_a_line(self):
+        self.assertEqual(self.client_for().patch(f'{CART}/{self.salad.id}', {'quantity': 2}, format='json').status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client_for().delete(f'{CART}/{self.salad.id}').status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class ClearCartTests(CartTestCase):

@@ -1,9 +1,10 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Cart, MAX_QUANTITY_PER_LINE
-from .serializers import CartSerializer, CartItemSerializer
+from .serializers import CartSerializer, CartItemSerializer, CartItemUpdateSerializer
 from .services import get_cart_items, get_cart_total, clear_cart
 
 # Cart Management
@@ -47,3 +48,22 @@ class CartView(generics.ListCreateAPIView):
     def delete(self, request, *args, **kwargs):
         clear_cart(request.user)
         return Response("ok")
+
+# /api/cart/menu-items/{menuitem_id}
+class CartItemView(generics.GenericAPIView):
+    serializer_class = CartItemUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(Cart.objects.select_related('menuitem'), user=self.request.user, menuitem_id=self.kwargs['menuitem_id'])
+
+    def patch(self, request, menuitem_id):
+        cart_item = self.get_object()
+        serializer = self.get_serializer(cart_item, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(CartItemSerializer(cart_item).data)
+
+    def delete(self, request, menuitem_id):
+        self.get_object().delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

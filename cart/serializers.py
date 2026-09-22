@@ -28,3 +28,19 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     def get_price(self, cart_item):
         return str(cart_item.quantity * cart_item.menuitem.price)
+
+class CartItemUpdateSerializer(serializers.ModelSerializer):
+    """Validates a request to change a single cart line's quantity."""
+    class Meta:
+        model = Cart
+        fields = ['quantity']
+        extra_kwargs = {
+            'quantity': {'min_value': 1, 'max_value': MAX_QUANTITY_PER_LINE},
+        }
+
+    def update(self, instance, validated_data):
+        instance.quantity = validated_data['quantity']
+        instance.unit_price = instance.menuitem.price
+        instance.price = instance.quantity * instance.menuitem.price
+        instance.save()
+        return instance
