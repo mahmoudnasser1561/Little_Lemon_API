@@ -1,7 +1,8 @@
-from rest_framework import generics
+from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Cart
+from .models import Cart, MAX_QUANTITY_PER_LINE
 from .serializers import CartSerializer, CartItemSerializer
 from .services import get_cart_items, get_cart_total, clear_cart
 
@@ -22,6 +23,27 @@ class CartView(generics.ListCreateAPIView):
             'total': str(get_cart_total(request.user)),
         })
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        menuitem = serializer.validated_data['menuitem']
+        quantity = serializer.validated_data['quantity']
+
+        cart_item, created = Cart.objects.get_or_create(
+            user=request.user, menuitem=menuitem,
+            defaults={'quantity': quantity, 'unit_price': menuitem.price, 'price': quantity * menuitem.price},
+        )
+        if not created:
+            quantity += cart_item.quantity
+            if quantity > MAX_QUANTITY_PER_LINE:
+                raise ValidationError({'quantity': f'A single line cannot hold more than {MAX_QUANTITY_PER_LINE}.'})
+            cart_item.quantity = quantity
+            cart_item.unit_price = menuitem.price
+            cart_item.price = quantity * menuitem.price
+            cart_item.save()
+
+        return Response(CartItemSerializer(cart_item).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
     def delete(self, request, *args, **kwargs):
-        clear_cart(self.request.user)
+        clear_cart(request.user)
         return Response("ok")

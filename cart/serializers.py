@@ -2,21 +2,16 @@ from rest_framework import serializers
 from .models import Cart, MAX_QUANTITY_PER_LINE
 
 class CartSerializer(serializers.ModelSerializer):
+    """Validates a request to add an item to the cart. The price is never taken from the client (see services.py)."""
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
-
-    def validate(self, attrs):
-        attrs['unit_price'] = attrs['menuitem'].price
-        attrs['price'] = attrs['quantity'] * attrs['unit_price']
-        return attrs
 
     class Meta:
         model = Cart
-        fields = ['user', 'menuitem', 'unit_price', 'quantity', 'price']
+        fields = ['user', 'menuitem', 'quantity']
         extra_kwargs = {
-            'unit_price': {'read_only': True},
             'quantity': {'min_value': 1, 'max_value': MAX_QUANTITY_PER_LINE},
-            'price': {'read_only': True}
         }
+        validators = []  # adding an item already in the cart merges the quantity (view), not a 400
 
 class CartItemSerializer(serializers.ModelSerializer):
     """Read-only view of a cart line. Prices are always read live from the menu, never from the stored copy."""

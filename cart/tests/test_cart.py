@@ -93,12 +93,19 @@ class AddToCartTests(CartTestCase):
         response = self.add(self.client_for(self.alice), self.salad, MAX_QUANTITY_PER_LINE)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @known_bug('C2')
     def test_adding_an_item_that_is_already_in_the_cart_adds_to_its_quantity(self):
         client = self.client_for(self.alice)
         self.add(client, self.salad, 1)
-        self.assertLess(self.add(client, self.salad, 2).status_code, 300)
+        response = self.add(client, self.salad, 2)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.cart_summary(client), [(self.salad.id, 3, '37.50')])
+
+    def test_the_combined_quantity_cannot_go_over_the_cap(self):
+        client = self.client_for(self.alice)
+        self.add(client, self.salad, 60)
+        response = self.add(client, self.salad, 50)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.cart_summary(client), [(self.salad.id, 60, '750.00')])
 
 
 class ViewCartTests(CartTestCase):
