@@ -263,8 +263,14 @@ No custom `.env` variables are read in current code.
 ```bash
 pipenv run python manage.py makemigrations --check --dry-run
 pipenv run python manage.py check
-pipenv run python manage.py test -v 2
+pipenv run python manage.py test            # the whole regression suite
+pipenv run python manage.py test cart       # one module: restaurant, cart or delivery_crew
+pipenv run python manage.py test -v 2       # list every test
 ```
+
+Tests live next to the code they cover (`restaurant/tests/`, `cart/tests/`, `delivery_crew/tests/`) and share the helpers in `LittleLemonAPI/testing.py`. They use a separate in-memory test database and never touch `db.sqlite3`.
+
+Tests marked `@known_bug('B..')` describe the desired behaviour of a bug or feature that is still open, so they are reported as expected failures. When you fix one, the runner reports an "unexpected success": remove the decorator and it becomes a normal regression test. `SHOW_KNOWN_BUGS=1 pipenv run python manage.py test` runs them as normal tests so you can see why they fail.
 
 ## Roadmap (Backend)
 
