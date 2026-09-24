@@ -1,0 +1,6 @@
+Django==5.2.11
+djangorestframework==3.16.1
+djoser==2.3.3
+django-filter==25.2
+psycopg2-binary==2.9.13
+gunicorn==26.2.0

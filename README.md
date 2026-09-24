@@ -243,7 +243,35 @@ curl -X DELETE "$BASE_URL/api/cart/menu-items" \
   -H "Authorization: Token $TOKEN"
 ```
 
-## Local Setup (Pipenv)
+## Running with Docker
+
+First, create your local secrets file (gitignored, never committed):
+
+```bash
+cp .env.example .env
+# then edit .env: set POSTGRES_PASSWORD and SECRET_KEY to real values.
+# generate a SECRET_KEY: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Then one command brings up the whole stack — the API and a real PostgreSQL database:
+
+```bash
+docker compose up
+```
+
+That builds the API image, starts Postgres, waits for it to be healthy, applies migrations automatically, and serves the API on `http://localhost:8000` via gunicorn. Data persists in a named volume across restarts (`docker compose stop` / `docker compose up` keeps it; `docker compose down -v` wipes it).
+
+`docker-compose.yml` reads `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` and `SECRET_KEY` from `.env` and **refuses to start without it** — there are no fallback credentials baked into the tracked file. `DEBUG` and `ALLOWED_HOSTS` are also read from `.env` but do have sensible defaults if you leave them out.
+
+Since there's no manager signup endpoint by design, create one inside the running container:
+
+```bash
+docker compose exec api python manage.py create_user --role manager --username boss --email boss@example.com
+```
+
+## Local Setup (Pipenv, no Docker)
+
+Runs on SQLite, no Postgres needed — useful for quick local iteration:
 
 ```bash
 pipenv install
@@ -255,10 +283,13 @@ pipenv run python manage.py runserver
 
 ## Environment Variables
 
-No custom `.env` variables are read in current code.
+All optional; every one has a fallback that keeps local/test runs working with zero setup.
 
-- `DJANGO_SETTINGS_MODULE` is set internally to `LittleLemonAPI.settings`
-- `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, and `DATABASES` are currently hardcoded in `LittleLemonAPI/settings.py`
+- `SECRET_KEY` — falls back to a hardcoded dev value if unset.
+- `DEBUG` — `"True"` or `"False"`; defaults to `True` (matches `docker-compose.yml`'s explicit `False` for a more production-realistic container).
+- `ALLOWED_HOSTS` — comma-separated; defaults to `[]` (fine locally, since Django allows `localhost`/`127.0.0.1` automatically when `DEBUG=True`).
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` — when `POSTGRES_DB` is set, the app connects to Postgres; otherwise it falls back to `db.sqlite3`. `docker-compose.yml` sets all of these.
+- `DJANGO_SETTINGS_MODULE` is set internally to `LittleLemonAPI.settings`.
 
 ## Running Tests
 
