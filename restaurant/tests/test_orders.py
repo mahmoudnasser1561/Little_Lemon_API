@@ -1,4 +1,5 @@
 from django.contrib.auth.models import Group
+from django.utils import timezone
 from rest_framework import status
 
 from cart.models import Cart
@@ -27,8 +28,8 @@ class OrderTestCase(BaseAPITestCase):
     def add_to_cart(self, client, item, quantity=1):
         return client.post(CART, {'menuitem': item.id, 'quantity': quantity}, format='json')
 
-    def check_out(self, client, date='2026-01-01'):
-        return client.post(ORDERS, {'date': date}, format='json')
+    def check_out(self, client, **body):
+        return client.post(ORDERS, body, format='json')
 
     def order_ids(self, user):
         return sorted(order['id'] for order in self.list_all(self.client_for(user), ORDERS))
@@ -46,7 +47,7 @@ class CheckoutTests(OrderTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['total'], '45.00')
         self.assertEqual(response.data['user'], self.alice.id)
-        self.assertEqual(response.data['date'], '2026-01-01')
+        self.assertEqual(response.data['date'], str(timezone.localdate()))
         self.assertIsNone(response.data['delivery_crew'])
         self.assertFalse(response.data['status'])
 
@@ -75,32 +76,25 @@ class CheckoutTests(OrderTestCase):
     def test_anonymous_user_cannot_check_out(self):
         self.assertEqual(self.check_out(self.client_for()).status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_an_empty_cart_creates_no_order(self):
-        self.check_out(self.client_for(self.alice))
-        self.assertEqual(Order.objects.count(), 0)
-
-    def test_an_invalid_date_creates_no_order_and_keeps_the_cart(self):
-        client = self.client_for(self.alice)
-        self.add_to_cart(client, self.salad)
-        self.check_out(client, date='not-a-date')
-        self.assertEqual(Order.objects.count(), 0)
-        self.assertEqual(Cart.objects.filter(user=self.alice).count(), 1)
-
-    @known_bug('B16')
     def test_checking_out_an_empty_cart_is_a_client_error(self):
-        self.assertEqual(self.check_out(self.client_for(self.alice)).status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.check_out(self.client_for(self.alice))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
 
-    @known_bug('B9')
-    def test_checking_out_with_an_invalid_date_is_a_client_error(self):
+    def test_a_client_supplied_date_is_ignored(self):
+        """B9 and B19 together: the client cannot supply the date at all, so an invalid one is simply irrelevant."""
         client = self.client_for(self.alice)
         self.add_to_cart(client, self.salad)
-        self.assertEqual(self.check_out(client, date='not-a-date').status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.check_out(client, date='not-a-date')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['date'], str(timezone.localdate()))
 
-    @known_bug('B19')
     def test_the_order_date_is_set_by_the_server(self):
         client = self.client_for(self.alice)
         self.add_to_cart(client, self.salad)
-        self.assertEqual(client.post(ORDERS, {}, format='json').status_code, status.HTTP_200_OK)
+        response = client.post(ORDERS, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['date'], str(timezone.localdate()))
 
     def test_checkout_uses_the_current_menu_price(self):
         client = self.client_for(self.alice)
@@ -110,6 +104,14 @@ class CheckoutTests(OrderTestCase):
         self.assertEqual(response.data['total'], '30.00')
         line = OrderItem.objects.get(order_id=response.data['id'])
         self.assertEqual((str(line.unit_price), str(line.price)), ('15.00', '30.00'))
+
+    @known_bug('B11')
+    def test_checking_out_a_huge_total_is_not_a_server_error(self):
+        """The checkout side of B11 (the cart side is already fixed by the C4 quantity cap)."""
+        client = self.client_for(self.alice)
+        expensive = self.make_menu_item('Yacht', '9999.99')
+        self.add_to_cart(client, expensive, 2)
+        self.assertLess(self.check_out(client).status_code, 500)
 
     @known_bug('B14')
     def test_an_order_shows_the_products_that_were_ordered(self):
