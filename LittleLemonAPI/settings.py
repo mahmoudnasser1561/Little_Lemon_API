@@ -168,6 +168,38 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (uploaded menu item images)
+# Same pattern as DATABASES/CACHES above: local disk by default (docker-compose backs it
+# with a named volume, same idea as postgres_data/redis_data), switching automatically to
+# S3-compatible storage (MinIO or real S3) when MINIO_ENDPOINT is set. Application code
+# (the model field, the serializer, the frontend) never knows or cares which is active -
+# that's the whole point. See restaurant/models.py MenuItem.image and
+# restaurant/serializers.py's RelativeImageField.
+
+MEDIA_URL = '/media/'
+
+if os.environ.get('MINIO_ENDPOINT'):
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+            'OPTIONS': {
+                'endpoint_url': os.environ['MINIO_ENDPOINT'],
+                'access_key': os.environ.get('MINIO_ACCESS_KEY', ''),
+                'secret_key': os.environ.get('MINIO_SECRET_KEY', ''),
+                'bucket_name': os.environ.get('MINIO_BUCKET', 'little-lemon-media'),
+                'default_acl': None,
+                'file_overwrite': False,
+            },
+        },
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+else:
+    MEDIA_ROOT = BASE_DIR / 'media'
+    STORAGES = {
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

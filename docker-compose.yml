@@ -32,6 +32,10 @@ services:
       REDIS_PORT: 6379
     ports:
       - "8000:8000"
+    volumes:
+      # Local-storage fallback for menu item images (see MEDIA_ROOT in settings.py) -
+      # unused once MINIO_ENDPOINT is set, same idea as postgres_data/redis_data.
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -55,3 +59,4 @@ volumes:
   postgres_data:
   redis_data:
   frontend_node_modules:
+  media_data:

@@ -1,3 +1,9 @@
+import tempfile
+from io import BytesIO
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
 from rest_framework import status
 
 from LittleLemonAPI.testing import BaseAPITestCase, known_bug
@@ -5,6 +11,14 @@ from restaurant.models import Category, MenuItem
 
 MENU = '/api/menu-items/'
 CATEGORIES = '/api/categories/'
+
+
+def make_test_image(name='item.png'):
+    """A tiny, valid in-memory PNG - real bytes, not a checked-in binary fixture."""
+    buffer = BytesIO()
+    Image.new('RGB', (10, 10), color='red').save(buffer, format='PNG')
+    buffer.seek(0)
+    return SimpleUploadedFile(name, buffer.read(), content_type='image/png')
 
 
 class CatalogTestCase(BaseAPITestCase):
@@ -33,7 +47,7 @@ class PublicCatalogTests(CatalogTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {
             'id': item.id, 'title': 'Greek Salad', 'price': '12.50', 'featured': True,
-            'category': {'id': self.mains.id, 'slug': 'mains', 'title': 'Mains'},
+            'category': {'id': self.mains.id, 'slug': 'mains', 'title': 'Mains'}, 'image': None,
         })
 
     def test_unknown_product_is_not_found(self):
@@ -101,6 +115,22 @@ class MenuItemManagementTests(CatalogTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         item.refresh_from_db()
         self.assertEqual(str(item.price), '11.00')
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_a_manager_can_upload_an_image(self):
+        item = self.make_menu_item()
+        response = self.client_for(self.manager).patch(f'{MENU}{item.id}', {'image': make_test_image()}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data['image'])
+        self.assertTrue(response.data['image'].startswith('/media/menu-items/'))
+        item.refresh_from_db()
+        self.assertTrue(item.image.name)
+
+    def test_a_menu_item_without_an_image_reports_null_not_missing(self):
+        item = self.make_menu_item()
+        response = self.client_for().get(f'{MENU}{item.id}')
+        self.assertIn('image', response.data)
+        self.assertIsNone(response.data['image'])
 
     def test_a_manager_can_replace_a_menu_item(self):
         item = self.make_menu_item()

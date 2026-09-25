@@ -28,12 +28,24 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'slug', 'title']
 
+# DRF's plain ImageField wraps its output in request.build_absolute_uri() whenever
+# serializer context has a request (which generic views always provide) - that would
+# bake in whatever host the request arrived as (e.g. "api", the docker-compose service
+# name, once the dev proxy rewrites the Host header), which the browser can't resolve.
+# .url alone is exactly right either way: a relative /media/... path under local
+# FileSystemStorage (the frontend proxies that path the same way it already does
+# /api and /token), or a real, directly-reachable URL once S3Boto3Storage is active.
+class RelativeImageField(serializers.ImageField):
+    def to_representation(self, value):
+        return value.url if value else None
+
 class MenuItemSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     category_id = serializers.IntegerField(write_only=True)
+    image = RelativeImageField(required=False, allow_null=True)
     class Meta:
         model = MenuItem
-        fields = ['id', 'title', 'price', 'featured', 'category', 'category_id']
+        fields = ['id', 'title', 'price', 'featured', 'category', 'category_id', 'image']
         
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:

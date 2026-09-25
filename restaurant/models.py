@@ -12,6 +12,10 @@ class MenuItem(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2, db_index=True)
     featured = models.BooleanField(db_index=True)
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
+    # Optional: most seeded/demo items won't have one, and a manager creating an item
+    # shouldn't be forced to attach a photo immediately. Storage backend (local disk vs
+    # MinIO/S3) is controlled entirely by STORAGES in settings.py, not by anything here.
+    image = models.ImageField(upload_to='menu-items/', blank=True, null=True)
     def __str__(self): return self.title
 
 class Order(models.Model):

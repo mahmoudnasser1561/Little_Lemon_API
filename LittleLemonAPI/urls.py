@@ -14,8 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+import os
+
+from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
+from django.views.static import serve
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -25,10 +29,19 @@ urlpatterns = [
     path("api/", include("cart.urls")),
     path("api/", include("delivery_crew.urls")),
 
-    # djoser endpoints 
+    # djoser endpoints
     path("api/", include("djoser.urls")),
 
     # token endpoint
     path("", include("djoser.urls.authtoken")),
 ]
+
+# Only when using local-disk media storage (see settings.py) - S3/MinIO serves its own
+# URLs directly and needs no route here. Django's own django.conf.urls.static.static()
+# helper only adds this when DEBUG=True, but this project runs DEBUG=False in
+# docker-compose by design, so the route is added directly rather than through it.
+if not os.environ.get('MINIO_ENDPOINT'):
+    urlpatterns += [
+        path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+    ]
 
