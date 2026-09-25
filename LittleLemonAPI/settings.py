@@ -202,6 +202,11 @@ DJOSER = {
     "EMAIL_FRONTEND_PROTOCOL": "http",
     "EMAIL_FRONTEND_DOMAIN": "localhost:3000",
     "EMAIL_FRONTEND_SITE_NAME": "Little Lemon",
+    "SERIALIZERS": {
+        # Adds a read-only "role" to GET/PATCH /api/users/me/ so the frontend can tell
+        # managers, delivery crew and customers apart without guessing from a 403.
+        "current_user": "restaurant.serializers.CurrentUserSerializer",
+    },
 }
 
 # The frontend runs at EMAIL_FRONTEND_DOMAIN above and owns the /reset-password and /reset-username

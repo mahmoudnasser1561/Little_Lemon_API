@@ -259,7 +259,9 @@ class ManagerOrderUpdateTests(OrderTestCase):
 
 
 class NoOneElseCanUpdateAnOrderTests(OrderTestCase):
-    def test_only_managers_can_write_to_an_order(self):
+    def test_customers_and_outsiders_cannot_write_to_an_order(self):
+        """Everyone except a manager or the order's own assigned delivery crew (covered
+        separately in DeliveryCrewOrderUpdateTests) is rejected outright."""
         order = self.make_order(self.alice, delivery_crew=self.crew)
         url = f'{ORDERS}/{order.id}'
         kitchen = self.make_customer('kitchen')
@@ -267,7 +269,6 @@ class NoOneElseCanUpdateAnOrderTests(OrderTestCase):
         attempt = {'status': True, 'delivery_crew': self.other_crew.id, 'total': '0.01', 'user': self.bob.id}
         for who, user, expected in (
             ('anonymous', None, 401), ('the customer who owns it', self.alice, 403), ('another customer', self.bob, 403),
-            ('the assigned delivery crew', self.crew, 403), ('other delivery crew', self.other_crew, 403),
             ('a superuser outside the Manager group', self.make_superuser(), 403), ('a user in an unknown group', kitchen, 403),
         ):
             client = self.client_for(user)
@@ -277,3 +278,51 @@ class NoOneElseCanUpdateAnOrderTests(OrderTestCase):
                 self.assertEqual(client.put(url, attempt, format='json').status_code, expected)
                 self.assertEqual(client.delete(url).status_code, expected)
                 self.assertEqual(self.snapshot(order), before)
+
+    def test_delivery_crew_not_assigned_to_the_order_cannot_write_to_it(self):
+        """A real delivery crew member passes the coarse permission check, but the order
+        isn't in their queryset, so PATCH/PUT are a 404 - same 'looks like it doesn't
+        exist' rule already applied to GET for orders outside a user's visibility. DELETE
+        is 405 regardless of who's asking, since it's never wired up at all (see
+        test_orders_cannot_be_deleted and test_orders_still_cannot_be_deleted_by_crew)."""
+        order = self.make_order(self.alice, delivery_crew=self.crew)
+        url = f'{ORDERS}/{order.id}'
+        client = self.client_for(self.other_crew)
+        before = self.snapshot(order)
+        self.assertEqual(client.patch(url, {'status': True}, format='json').status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(client.put(url, {'status': True}, format='json').status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(client.delete(url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.snapshot(order), before)
+
+
+class DeliveryCrewOrderUpdateTests(OrderTestCase):
+    """A delivery crew member can mark their own assigned order's status, and nothing else."""
+
+    def setUp(self):
+        super().setUp()
+        self.order = self.make_order(self.alice, delivery_crew=self.crew)
+        self.url = f'{ORDERS}/{self.order.id}'
+        self.client = self.client_for(self.crew)
+
+    def test_assigned_crew_can_set_the_status(self):
+        response = self.client.patch(self.url, {'status': True}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.snapshot(self.order)['status'])
+        self.assertFalse(self.client.patch(self.url, {'status': False}, format='json').data['status'])
+
+    def test_assigned_crew_cannot_reassign_the_order(self):
+        before = self.snapshot(self.order)
+        response = self.client.patch(self.url, {'delivery_crew': self.other_crew.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.snapshot(self.order)['delivery_crew_id'], before['delivery_crew_id'])
+
+    def test_assigned_crew_cannot_change_customer_data(self):
+        before = self.snapshot(self.order)
+        changes = {'user': self.other_crew.id, 'total': '0.01', 'date': '1999-01-01'}
+        self.client.patch(self.url, changes, format='json')
+        self.client.put(self.url, {**changes, 'status': before['status'], 'delivery_crew': self.crew.id}, format='json')
+        self.assertEqual(self.snapshot(self.order), before)
+
+    def test_orders_still_cannot_be_deleted_by_crew(self):
+        self.assertEqual(self.client.delete(self.url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Order.objects.filter(pk=self.order.pk).exists())

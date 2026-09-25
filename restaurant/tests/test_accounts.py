@@ -194,10 +194,17 @@ class ProfileTests(BaseAPITestCase):
     def test_customer_cannot_give_themselves_a_role(self):
         customer = self.make_customer()
         manager_group = Group.objects.get(name='Manager')
-        self.client_for(customer).patch(ME, {'is_staff': True, 'is_superuser': True, 'groups': [manager_group.id]}, format='json')
+        self.client_for(customer).patch(ME, {'is_staff': True, 'is_superuser': True, 'groups': [manager_group.id], 'role': 'manager'}, format='json')
         customer.refresh_from_db()
         self.assertFalse(customer.is_staff or customer.is_superuser)
         self.assertEqual(list(customer.groups.all()), [])
+        self.assertEqual(self.client_for(customer).get(ME).data['role'], 'customer')
+
+    def test_me_reports_the_callers_role(self):
+        for maker, expected_role in ((self.make_customer, 'customer'), (self.make_manager, 'manager'), (self.make_crew, 'delivery_crew')):
+            with self.subTest(expected_role):
+                user = maker()
+                self.assertEqual(self.client_for(user).get(ME).data['role'], expected_role)
 
     def test_anonymous_user_has_no_profile(self):
         self.assertEqual(self.client_for().get(ME).status_code, status.HTTP_401_UNAUTHORIZED)

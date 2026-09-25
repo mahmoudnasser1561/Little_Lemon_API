@@ -3,9 +3,9 @@ from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .permissions import IsManager
+from .permissions import IsManager, IsDeliveryCrew
 from .models import Category, MenuItem, Order, OrderItem
-from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, OrderUpdateSerializer, UserSerializer
+from .serializers import CategorySerializer, DeliveryCrewOrderUpdateSerializer, MenuItemSerializer, OrderSerializer, OrderUpdateSerializer, UserSerializer
 from . import caching
 from cart.services import get_cart_items, get_cart_total, clear_cart
 from delivery_crew.services import is_delivery_crew
@@ -165,10 +165,13 @@ class SingleOrderView(OrderQuerysetMixin, generics.RetrieveUpdateAPIView):
     def get_serializer_class(self):
         if self.request.method in SAFE_METHODS:
             return OrderSerializer
+
+        if is_delivery_crew(self.request.user) and not self.request.user.groups.filter(name='Manager').exists():
+            return DeliveryCrewOrderUpdateSerializer
         return OrderUpdateSerializer
 
     def get_permissions(self):
         permission_classes = [IsAuthenticated]
         if self.request.method not in SAFE_METHODS:
-            permission_classes = [IsAuthenticated, IsManager]
+            permission_classes = [IsAuthenticated, IsManager | IsDeliveryCrew]
         return [permission() for permission in permission_classes]
