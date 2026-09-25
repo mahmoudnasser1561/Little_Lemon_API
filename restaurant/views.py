@@ -6,6 +6,7 @@ from django.utils import timezone
 from .permissions import IsManager
 from .models import Category, MenuItem, Order, OrderItem
 from .serializers import CategorySerializer, MenuItemSerializer, OrderSerializer, OrderUpdateSerializer, UserSerializer
+from . import caching
 from cart.services import get_cart_items, get_cart_total, clear_cart
 from delivery_crew.services import is_delivery_crew
 
@@ -30,6 +31,22 @@ class CategoriesView(generics.ListCreateAPIView):
             permission_classes = [IsAuthenticated, IsManager]
         return [permission() for permission in permission_classes]
 
+    def list(self, request, *args, **kwargs):
+        cached = caching.get_category_list(request.query_params)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().list(request, *args, **kwargs)
+        caching.set_category_list(request.query_params, response.data)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def perform_create(self, serializer):
+        serializer.save()
+        caching.on_category_write()
+
 # /api/menu-items
 class MenuItemsView(generics.ListCreateAPIView):
     queryset = MenuItem.objects.all().order_by("id")
@@ -43,7 +60,23 @@ class MenuItemsView(generics.ListCreateAPIView):
             permission_classes = [IsAuthenticated, IsManager]
 
         return [permission() for permission in permission_classes]
-    
+
+    def list(self, request, *args, **kwargs):
+        cached = caching.get_menu_list(request.query_params)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().list(request, *args, **kwargs)
+        caching.set_menu_list(request.query_params, response.data)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def perform_create(self, serializer):
+        serializer.save()
+        caching.on_menu_item_write()
+
 # /api/menu-items/{menuItem}
 class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MenuItem.objects.all()
@@ -55,6 +88,28 @@ class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
             permission_classes = [IsAuthenticated, IsManager]
 
         return [permission() for permission in permission_classes]
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs['pk']
+        cached = caching.get_menu_item(pk)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().retrieve(request, *args, **kwargs)
+        caching.set_menu_item(pk, response.data)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        caching.on_menu_item_write(pk=instance.pk)
+
+    def perform_destroy(self, instance):
+        pk = instance.pk
+        instance.delete()
+        caching.on_menu_item_write(pk=pk)
 
 # Order Management
 # Managers see all orders, delivery crew only their assigned orders, everyone else only their own

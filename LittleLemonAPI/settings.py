@@ -101,6 +101,37 @@ else:
     }
 
 
+# Cache
+# Cache-aside layer for the public catalog (see restaurant/caching.py). Switches to
+# Redis automatically when REDIS_HOST is set (docker-compose sets it); otherwise falls
+# back to an in-process cache so local/test runs work with zero setup, same pattern as
+# DATABASES above. IGNORE_EXCEPTIONS means a Redis outage degrades caching to "always
+# miss" instead of a 500 - Redis is a performance layer here, never a source of truth.
+
+if os.environ.get('REDIS_HOST'):
+    redis_password = os.environ.get('REDIS_PASSWORD', '')
+    redis_auth = f':{redis_password}@' if redis_password else ''
+    redis_host = os.environ['REDIS_HOST']
+    redis_port = os.environ.get('REDIS_PORT', '6379')
+    redis_db = os.environ.get('REDIS_DB', '0')
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': f'redis://{redis_auth}{redis_host}:{redis_port}/{redis_db}',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+            },
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 

@@ -243,6 +243,37 @@ curl -X DELETE "$BASE_URL/api/cart/menu-items" \
   -H "Authorization: Token $TOKEN"
 ```
 
+## Caching
+
+A cache-aside layer sits in front of Postgres for the public catalog only: `GET /api/menu-items/`
+(including every `?search=`/`?ordering=`/`?page=` combination) and `GET /api/categories/`. Cart and
+orders are intentionally not cached - they're per-user, mutate on nearly every request, and are
+already cheap single-user-scoped queries.
+
+- **Read path**: a request checks Redis first. On a hit, the cached response is returned as-is; on a
+  miss, it falls through to Postgres as normal and the result is cached before responding.
+- **Every cached response carries `X-Cache: HIT` or `X-Cache: MISS`** so the behavior is directly
+  observable with `curl -i`.
+- **Invalidation is versioned, not scanned.** List caches are keyed as `...:v{N}:{query-hash}`. Any
+  menu item write bumps the menu-list version, instantly orphaning every previously cached page
+  (they just expire on their own TTL, nothing is scanned or deleted). A menu item's own detail key
+  (`menu:item:{id}`) is deleted directly on its update/delete. A category write bumps both the
+  category-list version and the menu-list version, since menu item responses embed a snapshot of
+  their category.
+- **TTLs are a safety net on top of invalidation**, not the primary mechanism - they catch anything
+  that writes to the DB outside the API (e.g. the Django admin or a shell). Default 5 minutes each,
+  configurable via `CACHE_TTL_MENU_LIST` / `CACHE_TTL_MENU_ITEM` / `CACHE_TTL_CATEGORY_LIST`.
+  See `restaurant/caching.py`.
+- **Redis is a performance layer, not a source of truth.** The cache backend is configured with
+  `IGNORE_EXCEPTIONS`, so if Redis is unreachable every cached endpoint just degrades to "always
+  miss" and serves straight from Postgres - it never turns into a 500.
+- **Security**: Redis requires a password (`REDIS_PASSWORD` in `.env`) and its port is not published
+  to the host in `docker-compose.yml` - it's reachable only from the `api` service on the compose
+  network.
+- Without `REDIS_HOST` set (e.g. running locally via Pipenv, or in tests), `CACHES` falls back to
+  Django's in-process `LocMemCache` automatically, so nothing extra is needed to run tests or
+  `runserver` locally.
+
 ## Running with Docker
 
 First, create your local secrets file (gitignored, never committed):
@@ -259,9 +290,9 @@ Then one command brings up the whole stack — the API and a real PostgreSQL dat
 docker compose up
 ```
 
-That builds the API image, starts Postgres, waits for it to be healthy, applies migrations automatically, and serves the API on `http://localhost:8000` via gunicorn. Data persists in a named volume across restarts (`docker compose stop` / `docker compose up` keeps it; `docker compose down -v` wipes it).
+That builds the API image, starts Postgres and Redis, waits for both to be healthy, applies migrations automatically, and serves the API on `http://localhost:8000` via gunicorn. Data persists in named volumes across restarts (`docker compose stop` / `docker compose up` keeps it; `docker compose down -v` wipes it). Redis is not published to the host — only the `api` service can reach it, on the compose network.
 
-`docker-compose.yml` reads `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` and `SECRET_KEY` from `.env` and **refuses to start without it** — there are no fallback credentials baked into the tracked file. `DEBUG` and `ALLOWED_HOSTS` are also read from `.env` but do have sensible defaults if you leave them out.
+`docker-compose.yml` reads `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `SECRET_KEY` from `.env` and **refuses to start without it** — there are no fallback credentials baked into the tracked file. `DEBUG` and `ALLOWED_HOSTS` are also read from `.env` but do have sensible defaults if you leave them out.
 
 Since there's no manager signup endpoint by design, create one inside the running container:
 
@@ -289,6 +320,8 @@ All optional; every one has a fallback that keeps local/test runs working with z
 - `DEBUG` — `"True"` or `"False"`; defaults to `True` (matches `docker-compose.yml`'s explicit `False` for a more production-realistic container).
 - `ALLOWED_HOSTS` — comma-separated; defaults to `[]` (fine locally, since Django allows `localhost`/`127.0.0.1` automatically when `DEBUG=True`).
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` — when `POSTGRES_DB` is set, the app connects to Postgres; otherwise it falls back to `db.sqlite3`. `docker-compose.yml` sets all of these.
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` — when `REDIS_HOST` is set, `CACHES` connects to Redis; otherwise it falls back to Django's in-process `LocMemCache`. `docker-compose.yml` sets `REDIS_HOST`/`REDIS_PORT`, and reads `REDIS_PASSWORD` from `.env`.
+- `CACHE_TTL_MENU_LIST`, `CACHE_TTL_MENU_ITEM`, `CACHE_TTL_CATEGORY_LIST` — seconds; all default to `300` (5 minutes). See [Caching](#caching).
 - `DJANGO_SETTINGS_MODULE` is set internally to `LittleLemonAPI.settings`.
 
 ## Running Tests
