@@ -121,13 +121,19 @@ class CheckoutTests(OrderTestCase):
         detail = client.get(f'{ORDERS}/{order_id}').data
         self.assertEqual(len(detail.get('items') or detail.get('orderitem') or []), 1)
 
-    @known_bug('B13')
     def test_deleting_a_menu_item_keeps_the_order_history(self):
+        """B13: the order line survives with its already-snapshotted price/quantity intact;
+        only the now-dangling reference to the deleted menu item goes null."""
         client = self.client_for(self.alice)
-        self.add_to_cart(client, self.salad)
-        self.check_out(client)
-        self.client_for(self.manager).delete(f'{MENU}{self.salad.id}')
-        self.assertEqual(OrderItem.objects.count(), 1)
+        self.add_to_cart(client, self.salad, 2)
+        order_id = self.check_out(client).data['id']
+        response = self.client_for(self.manager).delete(f'{MENU}{self.salad.id}')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        line = OrderItem.objects.get(order_id=order_id)
+        self.assertIsNone(line.menuitem)
+        self.assertEqual((line.quantity, str(line.unit_price), str(line.price)), (2, '12.50', '25.00'))
+        self.assertEqual(str(Order.objects.get(pk=order_id).total), '25.00')
 
     @known_bug('B22')
     def test_the_orders_url_works_with_a_trailing_slash(self):
