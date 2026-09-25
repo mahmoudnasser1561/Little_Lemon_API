@@ -292,6 +292,8 @@ docker compose up
 
 That builds the API image, starts Postgres and Redis, waits for both to be healthy, applies migrations automatically, and serves the API on `http://localhost:8000` via gunicorn. Data persists in named volumes across restarts (`docker compose stop` / `docker compose up` keeps it; `docker compose down -v` wipes it). Redis is not published to the host — only the `api` service can reach it, on the compose network.
 
+It also starts the storefront frontend (a sibling project at `../frontend` — see that repo) on `http://localhost:5173`, running Vite's own dev server with hot reload: the frontend source is bind-mounted in, so editing it on the host is reflected live in the running container. It reaches the API through the compose network (`VITE_PROXY_TARGET=http://api:8000`), not through `localhost`. If `../frontend` doesn't exist yet, `docker compose up` fails on the `frontend` service; run `docker compose up db redis api` to bring up just the backend.
+
 `docker-compose.yml` reads `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `SECRET_KEY` from `.env` and **refuses to start without it** — there are no fallback credentials baked into the tracked file. `DEBUG` and `ALLOWED_HOSTS` are also read from `.env` but do have sensible defaults if you leave them out.
 
 Since there's no manager signup endpoint by design, create one inside the running container:
