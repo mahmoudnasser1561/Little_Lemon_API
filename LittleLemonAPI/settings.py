@@ -187,8 +187,13 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 2,
+    # B24: restaurant.pagination.DefaultPagination adds a client-adjustable ?page_size=
+    # (capped at 50) on top of DRF's plain PageNumberPagination.
+    'DEFAULT_PAGINATION_CLASS': 'restaurant.pagination.DefaultPagination',
+    # 2 made every list endpoint (menu, categories, orders, managers) nearly unusable - a
+    # handful of items already spanned several pages. 12 is a sane default for a grid UI;
+    # env-configurable like everything else in this file.
+    'PAGE_SIZE': int(os.environ.get('PAGE_SIZE', 12)),
     "DEFAULT_THROTTLE_RATES": {
         "anon": "20/min",
         "user": "100/min",

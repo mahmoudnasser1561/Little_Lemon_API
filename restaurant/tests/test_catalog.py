@@ -66,11 +66,19 @@ class PublicCatalogTests(CatalogTestCase):
         self.make_menu_item()
         self.assertLess(self.client_for().get(f'{MENU}?ordering=inventory').status_code, 500)
 
-    @known_bug('B24')
     def test_the_first_page_holds_more_than_two_products(self):
-        for number in range(5):
+        """B24: PAGE_SIZE was 2, so a handful of items already spanned several pages."""
+        for number in range(15):
             self.make_menu_item(title=f'Dish {number}')
         self.assertGreater(len(self.client_for().get(MENU).data['results']), 2)
+
+    def test_page_size_is_client_adjustable_with_a_cap(self):
+        """B24: no way to ask for a bigger page was the other half of the complaint."""
+        for number in range(60):
+            self.make_menu_item(title=f'Dish {number}')
+        client = self.client_for()
+        self.assertEqual(len(client.get(f'{MENU}?page_size=5').data['results']), 5)
+        self.assertEqual(len(client.get(f'{MENU}?page_size=1000').data['results']), 50)  # capped
 
     @known_bug('B25')
     def test_search_matches_the_dish_name(self):
