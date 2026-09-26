@@ -31,9 +31,11 @@ I built this to sharpen API design, permissions, and data modeling around a real
 
 ## Project Structure
 
-- `LittleLemonAPI/` project settings, root URLs, WSGI/ASGI
-- `restaurant/` app code: models, serializers, permissions, views, URLs, tests
-- `manage.py` Django management entrypoint
+- `backend/` Django project
+  - `LittleLemonAPI/` project settings, root URLs, WSGI/ASGI
+  - `restaurant/`, `cart/`, `delivery_crew/` app code: models, serializers, permissions, views, URLs, tests
+  - `manage.py` Django management entrypoint
+- `frontend/` React/TypeScript SPAs (storefront + ops console) — see `frontend/README.md`
 
 ## Data Model
 
@@ -279,8 +281,8 @@ already cheap single-user-scoped queries.
 First, create your local secrets file (gitignored, never committed):
 
 ```bash
-cp .env.example .env
-# then edit .env: set POSTGRES_PASSWORD and SECRET_KEY to real values.
+cp backend/.env.example backend/.env
+# then edit backend/.env: set POSTGRES_PASSWORD and SECRET_KEY to real values.
 # generate a SECRET_KEY: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
@@ -292,7 +294,7 @@ docker compose up
 
 That builds the API image, starts Postgres and Redis, waits for both to be healthy, applies migrations automatically, and serves the API on `http://localhost:8000` via gunicorn. Data persists in named volumes across restarts (`docker compose stop` / `docker compose up` keeps it; `docker compose down -v` wipes it). Redis is not published to the host — only the `api` service can reach it, on the compose network.
 
-It also starts the storefront frontend (a sibling project at `../frontend` — see that repo) on `http://localhost:5173`, running Vite's own dev server with hot reload: the frontend source is bind-mounted in, so editing it on the host is reflected live in the running container. It reaches the API through the compose network (`VITE_PROXY_TARGET=http://api:8000`), not through `localhost`. If `../frontend` doesn't exist yet, `docker compose up` fails on the `frontend` service; run `docker compose up db redis api` to bring up just the backend.
+It also starts the storefront frontend (`frontend/apps/storefront`) on `http://localhost:5173` and the ops console (`frontend/apps/ops-console`) on `http://localhost:5174`, both running Vite's own dev server with hot reload: the frontend source is bind-mounted in, so editing it on the host is reflected live in the running containers. They reach the API through the compose network (`VITE_PROXY_TARGET=http://api:8000`), not through `localhost`. To bring up just the backend: `docker compose up db redis api`.
 
 `docker-compose.yml` reads `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `SECRET_KEY` from `.env` and **refuses to start without it** — there are no fallback credentials baked into the tracked file. `DEBUG` and `ALLOWED_HOSTS` are also read from `.env` but do have sensible defaults if you leave them out.
 
@@ -307,6 +309,7 @@ docker compose exec api python manage.py create_user --role manager --username b
 Runs on SQLite, no Postgres needed — useful for quick local iteration:
 
 ```bash
+cd backend
 pipenv install
 pipenv run python manage.py migrate
 pipenv run python manage.py createsuperuser
@@ -329,6 +332,7 @@ All optional; every one has a fallback that keeps local/test runs working with z
 ## Running Tests
 
 ```bash
+cd backend
 pipenv run python manage.py makemigrations --check --dry-run
 pipenv run python manage.py check
 pipenv run python manage.py test            # the whole regression suite
