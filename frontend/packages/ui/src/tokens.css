@@ -1,0 +1,21 @@
+/* Little Lemon design tokens - a warm, editorial palette, deliberately not another
+   blue-and-white SaaS look: terracotta + olive against a warm ivory ground. */
+:root {
+  --bg: #faf7f0;
+  --surface: #ffffff;
+  --surface-alt: #f3eee2;
+  --border: #e5dcc8;
+  --border-strong: #d8cbae;
+  --text: #241f18;
+  --text-secondary: #6b6255;
+  --text-tertiary: #9a9080;
+  --accent: #b5482c;
+  --accent-hover: #96391f;
+  --accent-soft: #f4e1d6;
+  --olive: #57633f;
+  --olive-soft: #e5e9d6;
+  --amber: #b4832a;
+  --amber-soft: #f4e8ce;
+  --danger: #a23b32;
+  --danger-soft: #f3deda;
+}
